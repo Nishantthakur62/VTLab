@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './App.css';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
 export function buildUsageRows(apiUsageResponse) {
