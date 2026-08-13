@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import './App.css';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
 export function buildUsageRows(apiUsageResponse) {
@@ -53,6 +54,79 @@ export function getDailySummary(results) {
     }));
 }
 
+export function getEndpointBreakdown(results) {
+  const endpointData = {};
+
+  results
+    .filter((result) => result.status === 'Success')
+    .forEach((result) => {
+      result.usageRows.forEach((row) => {
+        if (row.endpoint !== 'No activity') {
+          if (!endpointData[row.endpoint]) {
+            endpointData[row.endpoint] = 0;
+          }
+          endpointData[row.endpoint] += Number(row.calls) || 0;
+        }
+      });
+    });
+
+  return Object.entries(endpointData)
+    .map(([endpoint, calls]) => ({
+      name: endpoint,
+      value: calls,
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
+export function getTopEndpoints(results, limit = 10) {
+  const endpointData = {};
+
+  results
+    .filter((result) => result.status === 'Success')
+    .forEach((result) => {
+      result.usageRows.forEach((row) => {
+        if (row.endpoint !== 'No activity') {
+          if (!endpointData[row.endpoint]) {
+            endpointData[row.endpoint] = 0;
+          }
+          endpointData[row.endpoint] += Number(row.calls) || 0;
+        }
+      });
+    });
+
+  return Object.entries(endpointData)
+    .map(([endpoint, calls]) => ({
+      endpoint,
+      calls,
+    }))
+    .sort((a, b) => b.calls - a.calls)
+    .slice(0, limit);
+}
+
+export function getApiKeyComparison(results) {
+  return results
+    .filter((result) => result.status === 'Success')
+    .map((result) => ({
+      apiKey: result.apiKey,
+      requests: result.totalRequests,
+      endpoints: result.activeEndpoints,
+    }));
+}
+
+export function getCumulativeUsage(results) {
+  const dailySummary = getDailySummary(results);
+  let cumulative = 0;
+
+  return dailySummary.map((item) => {
+    cumulative += item.calls;
+    return {
+      date: item.date,
+      calls: item.calls,
+      cumulative,
+    };
+  });
+}
+
 function App() {
   const [apiKeys, setApiKeys] = useState('');
   const [results, setResults] = useState([]);
@@ -61,6 +135,7 @@ function App() {
   const [rangeType, setRangeType] = useState('today');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [currentPage, setCurrentPage] = useState('dashboard');
 
   const getTodayDate = () => {
     const today = new Date();
@@ -182,11 +257,118 @@ function App() {
     .reduce((sum, result) => sum + (Number(result.activeEndpoints) || 0), 0);
 
   const dailySummaryData = getDailySummary(results);
+  const endpointBreakdown = getEndpointBreakdown(results);
+  const topEndpoints = getTopEndpoints(results);
+  const apiKeyComparison = getApiKeyComparison(results);
+  const cumulativeUsage = getCumulativeUsage(results);
+
+  const COLORS = ['#1976d2', '#dc3545', '#ffc107', '#28a745', '#17a2b8', '#6f42c1', '#e83e8c', '#fd7e14', '#20c997', '#6c757d'];
+
+  if (currentPage === 'analytics' && results.length > 0) {
+    return (
+      <div className="App">
+        <div className="container">
+          <div className="page-header">
+            <h1>Analytics & Insights</h1>
+            <button onClick={() => setCurrentPage('dashboard')} className="btn-nav">← Back to Dashboard</button>
+          </div>
+
+          <div className="analytics-grid">
+            {topEndpoints.length > 0 && (
+              <div className="chart-section full-width">
+                <h2>Top 10 Endpoints by Usage</h2>
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={topEndpoints}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="endpoint" angle={-45} textAnchor="end" height={100} />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="calls" fill="#1976d2" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {endpointBreakdown.length > 0 && (
+              <div className="chart-section">
+                <h2>Endpoint Breakdown</h2>
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={endpointBreakdown}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {endpointBreakdown.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {cumulativeUsage.length > 0 && (
+              <div className="chart-section">
+                <h2>Cumulative Usage Over Time</h2>
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={cumulativeUsage}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="cumulative" stroke="#28a745" strokeWidth={2} name="Cumulative Calls" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {apiKeyComparison.length > 0 && (
+              <div className="chart-section">
+                <h2>API Key Comparison</h2>
+                <div className="chart-container">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={apiKeyComparison}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="apiKey" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="requests" fill="#1976d2" name="Requests" />
+                      <Bar dataKey="endpoints" fill="#dc3545" name="Endpoints" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="App">
       <div className="container">
-        <h1>VirusTotal API Usage Tracker</h1>
+        <div className="page-header">
+          <h1>VirusTotal API Usage Tracker</h1>
+          {results.length > 0 && (
+            <button onClick={() => setCurrentPage('analytics')} className="btn-nav">Analytics →</button>
+          )}
+        </div>
         <p className="subtitle">Track usage across custom date ranges and endpoint activity.</p>
 
         <div className="input-section">
