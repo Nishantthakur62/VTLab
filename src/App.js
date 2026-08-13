@@ -94,17 +94,18 @@ function App() {
 
     for (const apiKey of keys) {
       try {
-        const startDateParam = dateObj.start.replace(/-/g, '');
-        const endDateParam = dateObj.end.replace(/-/g, '');
-
         const response = await fetch(
-          `https://www.virustotal.com/api/v3/users/${apiKey}/api_usage?start_date=${startDateParam}&end_date=${endDateParam}`,
+          '/api/getVirusTotal',
           {
-            method: 'GET',
+            method: 'POST',
             headers: {
-              accept: 'application/json',
-              'x-apikey': apiKey,
+              'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+              apiKey,
+              startDate: dateObj.start,
+              endDate: dateObj.end,
+            }),
           }
         );
 
