@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import './App.css';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
 
 export function buildUsageRows(apiUsageResponse) {
   const daily = apiUsageResponse?.data?.daily || {};
@@ -26,6 +29,28 @@ export function buildUsageRows(apiUsageResponse) {
     });
 
   return rows;
+}
+
+export function getDailySummary(results) {
+  const dailyData = {};
+
+  results
+    .filter((result) => result.status === 'Success')
+    .forEach((result) => {
+      result.usageRows.forEach((row) => {
+        if (!dailyData[row.date]) {
+          dailyData[row.date] = 0;
+        }
+        dailyData[row.date] += Number(row.calls) || 0;
+      });
+    });
+
+  return Object.entries(dailyData)
+    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+    .map(([date, calls]) => ({
+      date,
+      calls,
+    }));
 }
 
 function App() {
@@ -156,6 +181,8 @@ function App() {
     .filter((result) => result.status === 'Success')
     .reduce((sum, result) => sum + (Number(result.activeEndpoints) || 0), 0);
 
+  const dailySummaryData = getDailySummary(results);
+
   return (
     <div className="App">
       <div className="container">
@@ -219,6 +246,24 @@ function App() {
         </div>
 
         {error && <div className="error-message">{error}</div>}
+
+        {results.length > 0 && dailySummaryData.length > 0 && (
+          <div className="chart-section">
+            <h2>Daily API Calls Summary</h2>
+            <div className="chart-container">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dailySummaryData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="calls" fill="#1976d2" name="Total Calls" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         {results.length > 0 && (
           <div className="results-section">
